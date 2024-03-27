@@ -1,0 +1,23 @@
+---
+run:
+  issues-exit-code: 1
+  skip-files:
+    - ".+_test.go"
+
+output:
+  format: tab
+  print-issued-lines: true
+  print-linter-name: true
+
+linters:
+  enable-all: true
+  disable:
+    - interfacebloat
+
+  fast: false
+
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 10
+  max-same-issues: 4
+  new: false
