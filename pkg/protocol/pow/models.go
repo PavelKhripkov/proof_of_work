@@ -8,14 +8,14 @@ import (
 )
 
 const (
-	ClientRequestHeaderSize = 34
-	ClientRequestSize       = 36
+	clientRequestHeaderSize = 34
+	clientRequestSize       = 36
 
-	ServerResponseMinLen = 2
+	serverResponseMinLen = 2
 )
 
-// ClientRequestHeader represents client request header.
-type ClientRequestHeader struct {
+// clientRequestHeader represents client request header.
+type clientRequestHeader struct {
 	Ver      byte
 	Bits     byte
 	Date     time.Time
@@ -24,7 +24,7 @@ type ClientRequestHeader struct {
 }
 
 // Marshal returns marshalled header.
-func (s ClientRequestHeader) Marshal() []byte {
+func (s clientRequestHeader) Marshal() []byte {
 	l := 1 + 1 + 8 + 16 + 8
 	res := make([]byte, l)
 
@@ -38,7 +38,7 @@ func (s ClientRequestHeader) Marshal() []byte {
 }
 
 // Unmarshal parses a byte message into structure.
-func (s *ClientRequestHeader) Unmarshal(msg []byte) error {
+func (s *clientRequestHeader) Unmarshal(msg []byte) error {
 	if len(msg) != 34 {
 		return ErrUnknownProtocol
 	}
@@ -54,14 +54,14 @@ func (s *ClientRequestHeader) Unmarshal(msg []byte) error {
 	return nil
 }
 
-// ClientRequest represents client request.
-type ClientRequest struct {
-	Header ClientRequestHeader
+// clientRequest represents client request.
+type clientRequest struct {
+	Header clientRequestHeader
 	Method protocol.SeverMethod
 }
 
 // Unmarshal parses a byte message into structure.
-func (s *ClientRequest) Unmarshal(msg []byte) error {
+func (s *clientRequest) Unmarshal(msg []byte) error {
 	if len(msg) != 36 {
 		return ErrUnknownProtocol
 	}
@@ -74,22 +74,22 @@ func (s *ClientRequest) Unmarshal(msg []byte) error {
 }
 
 // Marshal returns marshalled client request.
-func (s *ClientRequest) Marshal() []byte {
-	res := make([]byte, ClientRequestSize)
+func (s *clientRequest) Marshal() []byte {
+	res := make([]byte, clientRequestSize)
 	copy(res, s.Header.Marshal())
-	binary.BigEndian.PutUint16(res[ClientRequestHeaderSize:], uint16(s.Method))
+	binary.BigEndian.PutUint16(res[clientRequestHeaderSize:], uint16(s.Method))
 
 	return res
 }
 
-// ServerResponse represents server response.
-type ServerResponse struct {
+// serverResponse represents server response.
+type serverResponse struct {
 	Code protocol.ServerResponseCode
 	Body []byte
 }
 
 // Marshal returns marshalled server response.
-func (s ServerResponse) Marshal() []byte {
+func (s serverResponse) Marshal() []byte {
 	res := make([]byte, 2+len(s.Body))
 
 	binary.BigEndian.PutUint16(res, uint16(s.Code))
@@ -99,8 +99,8 @@ func (s ServerResponse) Marshal() []byte {
 }
 
 // Unmarshal parses a byte message into structure.
-func (s *ServerResponse) Unmarshal(msg []byte) error {
-	if len(msg) < ServerResponseMinLen {
+func (s *serverResponse) Unmarshal(msg []byte) error {
+	if len(msg) < serverResponseMinLen {
 		return ErrUnknownProtocol
 	}
 

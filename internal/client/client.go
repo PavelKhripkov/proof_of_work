@@ -8,7 +8,8 @@ import (
 	"pow/pkg/protocol"
 )
 
-const tcp = "tcp" // TODO leave this choice to the consumer.
+// TODO leave this choice to the consumer.
+const tcp = "tcp"
 
 // client represents a service that is making some work before asking a server for some resources.
 type client struct {

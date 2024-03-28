@@ -13,15 +13,15 @@ const keyTemplate = "pow:{%s}:%x"
 
 // redisStorage is a service that uses Redis to store and retrieve data.
 type redisStorage struct {
-	c               *redis.Client
-	hashExpDuration time.Duration
+	c       *redis.Client
+	hashTTL time.Duration
 }
 
 // NewRedis returns a new Redis storage service.
-func NewRedis(c *redis.Client, hashExpDuration time.Duration) *redisStorage {
+func NewRedis(c *redis.Client, hashTTL time.Duration) *redisStorage {
 	return &redisStorage{
-		c:               c,
-		hashExpDuration: hashExpDuration,
+		c:       c,
+		hashTTL: hashTTL,
 	}
 }
 
@@ -40,6 +40,6 @@ func (s *redisStorage) GetSetHashByClient(ctx context.Context, client string, ha
 		return false, nil
 	}
 
-	s.c.Set(ctx, key, "", s.hashExpDuration)
+	s.c.Set(ctx, key, "", s.hashTTL)
 	return true, nil
 }

@@ -8,6 +8,6 @@ type Config struct {
 	Target         byte          `envconfig:"TARGET" default:"20"`
 	Concurrency    uint          `envconfig:"CONCURRENCY" default:"1"`
 	RemoteAddr     string        `envconfig:"REMOTE_ADDR" default:"localhost:9000"`
-	LogLevel       string        `envconfig:"LOG_LEVEL" default:"debug"`
-	RequestTimeout time.Duration `envconfig:"REQUEST_TIMEOUT" default:"1h"`
+	LogLevel       string        `envconfig:"LOG_LEVEL" default:"info"`
+	RequestTimeout time.Duration `envconfig:"REQUEST_TIMEOUT" default:"10s"`
 }

@@ -7,25 +7,28 @@ import (
 	"github.com/sirupsen/logrus"
 	"io"
 	"pow/pkg/protocol"
+	"time"
 )
 
 // pow is a service that helps protect a server from DoS attacks.
 // The service checks whether the client has completed some work before they can access the server's resources.
 // The service uses a modified Hashcash algorithm under the hood.
 type pow struct {
-	l        *logrus.Entry
-	version  byte
-	target   byte
-	hashcash hashcash
+	l                  *logrus.Entry
+	version            byte
+	target             byte
+	hashcash           hashcash
+	headerTimeInterval time.Duration
 }
 
 // NewPoW create a new Proof of Work service.
-func NewPoW(l *logrus.Entry, version byte, target byte, hashcash hashcash) *pow {
+func NewPoW(l *logrus.Entry, version byte, target byte, hashcash hashcash, headerTimeInterval time.Duration) *pow {
 	return &pow{
-		l:        l,
-		version:  version,
-		target:   target,
-		hashcash: hashcash,
+		l:                  l,
+		version:            version,
+		target:             target,
+		hashcash:           hashcash,
+		headerTimeInterval: headerTimeInterval,
 	}
 }
 
@@ -36,7 +39,7 @@ func (s *pow) SendClientRequest(ctx context.Context, conn io.Writer, localIP str
 		return errors.Wrap(err, "couldn't prepare header")
 	}
 
-	req := ClientRequest{
+	req := clientRequest{
 		Header: *header,
 		Method: method,
 	}
@@ -68,7 +71,7 @@ func (s *pow) ReceiveServerResponse(ctx context.Context, conn io.Reader) (protoc
 		return protocol.SRCUnknown, nil, ErrEmptyResponse
 	}
 
-	resp := ServerResponse{}
+	resp := serverResponse{}
 	if err = resp.Unmarshal(buf.Bytes()); err != nil {
 		return protocol.SRCUnknown, nil, errors.Wrap(err, "couldn't unmarshal server response")
 	}
@@ -89,20 +92,20 @@ func (s *pow) HandleClientRequest(
 		return protocol.SMNoOp, errors.Wrap(err, "couldn't read client request")
 	}
 
-	hash, err := s.validateHeaderHash(ctx, requestBytes[:ClientRequestHeaderSize])
+	hash, err := s.validateHeaderHash(ctx, requestBytes[:clientRequestHeaderSize])
 	if err != nil {
 		return protocol.SMNoOp, err
 	}
 
-	var request ClientRequest
+	var request clientRequest
 	if err = request.Unmarshal(requestBytes); err != nil {
 		return protocol.SMNoOp, errors.Wrap(err, "couldn't unmarshal client request")
 	}
 
 	s.l.WithField("request", request).Debug("Got client request.")
 
-	if clientIP := request.Header.Resource.String(); clientIP != remoteHost {
-		return protocol.SMNoOp, errors.Wrap(ErrInvalidHeader, "couldn't identify client")
+	if err = s.validateHeader(request.Header, remoteHost); err != nil {
+		return protocol.SMNoOp, err
 	}
 
 	allowed, err := checker(ctx, remoteHost, hash)
@@ -117,9 +120,31 @@ func (s *pow) HandleClientRequest(
 	return protocol.SMGetQuote, nil
 }
 
+// validateHeader checks if header settings meet server requirements.
+func (s *pow) validateHeader(header clientRequestHeader, remoteHost string) error {
+	if clientIP := header.Resource.String(); clientIP != remoteHost {
+		return errors.Wrapf(ErrWrongClientID, "client specified their ID as %s, server identified client as %s", header.Resource.String(), remoteHost)
+	}
+
+	if s.version != header.Ver {
+		return errors.Wrapf(ErrWrongVersion, "client version %d doesn't match server version %d", header.Ver, s.version)
+	}
+
+	if s.target < header.Bits {
+		return errors.Wrapf(ErrTargetBits, "client's target bits %d less then server's target bits %d", header.Bits, s.target)
+	}
+
+	now := time.Now()
+	if now.Add(-s.headerTimeInterval).After(header.Date) || now.Add(s.headerTimeInterval).Before(header.Date) {
+		return errors.Wrapf(ErrInvalidHeaderTime, "header's time is not within interval +- %v from current time", s.headerTimeInterval)
+	}
+
+	return nil
+}
+
 // SendServerResponse used by server to send response to client.
 func (s *pow) SendServerResponse(ctx context.Context, conn io.Writer, code protocol.ServerResponseCode, payload []byte) error {
-	resp := ServerResponse{
+	resp := serverResponse{
 		Code: code,
 		Body: payload,
 	}

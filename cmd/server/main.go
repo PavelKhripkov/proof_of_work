@@ -19,59 +19,55 @@ import (
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 
+	// Config.
 	cfg := Config{}
 	err := config.LoadConfig("POW_SERVER", &cfg)
 	if err != nil {
 		panic(err.Error())
 	}
 
-	version := cfg.Version
-	target := cfg.Target
-	concurr := cfg.Concurrency
-	redisURL := cfg.RedisURL
-	serverAddr := cfg.ServerAddr
-	serverPost := cfg.ServerPort
-	hashExp := cfg.HashExp
-	logLevel := cfg.LogLevel
-	responseTimeout := cfg.ResponseTimeout
-	hashRetention := cfg.HashRetention
-
+	// Logger.
 	logger := logrus.New()
 	logger.SetOutput(os.Stdout)
-	lvl, err := logrus.ParseLevel(logLevel)
+	lvl, err := logrus.ParseLevel(cfg.LogLevel)
 	if err != nil {
 		lvl = logrus.InfoLevel
 	}
 	logger.SetLevel(lvl)
 
-	h := hashcash.NewHashcash(sha256.New, concurr)
+	// Hashcash.
+	h := hashcash.NewHashcash(sha256.New, cfg.Concurrency)
 
-	opt, err := redis.ParseURL(redisURL)
+	// Redis.
+	opt, err := redis.ParseURL(cfg.RedisURL)
 	if err != nil {
 		panic("couldn't parse redisURL")
 	}
 	redisClient := redis.NewClient(opt)
+	redisStorage := redis_storage.NewRedis(redisClient, cfg.HashExp)
 
-	redisStorage := redis_storage.NewRedis(redisClient, hashExp)
-	proto := pow.NewPoW(logger.WithField("module", "pow"), version, target, h)
+	// Proto.
+	proto := pow.NewPoW(logger.WithField("module", "pow"), cfg.Version, cfg.Target, h, cfg.HeaderTimeInterval)
 
-	s := server.NewServer(logger.WithField("module", "server"), redisStorage, proto, responseTimeout, hashRetention)
+	// Server.
+	s := server.NewServer(logger.WithField("module", "server"), redisStorage, proto, cfg.ResponseTimeout)
 
-	ip := net.ParseIP(serverAddr)
+	ip := net.ParseIP(cfg.ServerAddr)
 	if ip == nil {
 		logger.Info("Server address is not specified. Using default.")
 	}
 
-	if serverPost == 0 {
+	if cfg.ServerPort == 0 {
 		logger.Info("Server port is not specified. Port will be chosen automatically.")
 	}
 
 	addr := net.TCPAddr{
 		IP:   ip,
-		Port: serverPost,
+		Port: cfg.ServerPort,
 		Zone: "",
 	}
 
+	// Graceful shutdown on signal.
 	go func() {
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan,
@@ -82,17 +78,18 @@ func main() {
 
 		// Waiting for signal and finishing services.
 		sig := <-sigChan
-		logger.Infof("received signal %s, exiting...", sig)
-
+		logger.Infof("Received signal %s, exiting.", sig)
 		cancel()
 	}()
 
+	// Starting server.
+	logger.Info("Starting server.")
 	err = s.Run(ctx, &addr)
 	if err != nil {
-		logger.WithError(err).Error("Server stopped with error.")
+		logger.WithError(err).Error("Server stopped.")
+		cancel()
 	}
 
+	// Waiting server is done.
 	s.Done()
-
-	// TODO stop gracefully.
 }

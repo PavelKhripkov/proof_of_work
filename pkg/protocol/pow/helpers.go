@@ -12,11 +12,11 @@ import (
 
 // readClientRequest reads a client request and verifies that it satisfies basic protocol requirements.
 func (s *pow) readClientRequest(ctx context.Context, conn io.Reader) ([]byte, error) {
-	requestBytes := make([]byte, ClientRequestSize+1)
+	requestBytes := make([]byte, clientRequestSize+1)
 
 	n, err := conn.Read(requestBytes)
 
-	if n != ClientRequestSize {
+	if n != clientRequestSize {
 		return nil, ErrUnknownProtocol
 	}
 
@@ -24,14 +24,14 @@ func (s *pow) readClientRequest(ctx context.Context, conn io.Reader) ([]byte, er
 		return nil, err
 	}
 
-	requestBytes = requestBytes[:ClientRequestSize]
+	requestBytes = requestBytes[:clientRequestSize]
 
 	return requestBytes, nil
 }
 
 // validateHeaderHash checks that header meets protocol requirements and service settings.
 func (s *pow) validateHeaderHash(ctx context.Context, headerBytes []byte) ([]byte, error) {
-	if len(headerBytes) != ClientRequestHeaderSize {
+	if len(headerBytes) != clientRequestHeaderSize {
 		return nil, ErrUnknownProtocol
 	}
 
@@ -47,13 +47,13 @@ func (s *pow) validateHeaderHash(ctx context.Context, headerBytes []byte) ([]byt
 }
 
 // prepareHeader returns client request header that satisfies protocol requirements and service settings.
-func (s *pow) prepareHeader(ctx context.Context, localIP string) (*ClientRequestHeader, error) {
+func (s *pow) prepareHeader(ctx context.Context, localIP string) (*clientRequestHeader, error) {
 	resource := net.ParseIP(localIP)
 	if resource == nil {
 		return nil, errors.Wrapf(ErrWrongValue, "couldn't parse localIP '%s'", localIP)
 	}
 
-	header := ClientRequestHeader{
+	header := clientRequestHeader{
 		Ver:      s.version,
 		Bits:     s.target,
 		Date:     time.Now(),
@@ -62,7 +62,7 @@ func (s *pow) prepareHeader(ctx context.Context, localIP string) (*ClientRequest
 	}
 
 	headerBytes := header.Marshal()
-	nonce, err := s.hashcash.FindNonce(ctx, headerBytes[:ClientRequestHeaderSize-8], uint(s.target))
+	nonce, err := s.hashcash.FindNonce(ctx, headerBytes[:clientRequestHeaderSize-8], uint(s.target))
 	if err != nil {
 		return nil, err
 	}

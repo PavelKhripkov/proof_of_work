@@ -11,42 +11,44 @@ import (
 
 // server is a web server that uses some PoW services to protect itself from DoS attacks.
 type server struct {
-	l             *logrus.Entry
-	storage       storage
-	proto         proto
-	respTimeout   time.Duration
-	hashRetention time.Duration
-	done          chan struct{}
+	l           *logrus.Entry
+	storage     storage
+	proto       proto
+	respTimeout time.Duration
+	done        chan struct{}
 }
 
 // NewServer returns a new server instance.
-func NewServer(l *logrus.Entry, storage storage, proto proto, respTimeout time.Duration, hashRetention time.Duration) *server {
+func NewServer(l *logrus.Entry, storage storage, proto proto, respTimeout time.Duration) *server {
 	return &server{
-		l:             l,
-		storage:       storage,
-		proto:         proto,
-		respTimeout:   respTimeout,
-		hashRetention: hashRetention,
-		done:          make(chan struct{}),
+		l:           l,
+		storage:     storage,
+		proto:       proto,
+		respTimeout: respTimeout,
+		done:        make(chan struct{}),
 	}
 }
 
 // Run starts the server.
 func (s *server) Run(ctx context.Context, addr net.Addr) error {
-	lstn, err := net.Listen(addr.Network(), addr.String())
-	if err != nil {
-		return errors.Wrap(err, "couldn't init listener")
-	}
+	var lstn net.Listener
 
 	go func() {
 		<-ctx.Done()
-		if err := lstn.Close(); err != nil {
-			err = errors.Wrap(err, "error occurred on listener close")
-			s.l.Error(err)
+		if lstn != nil {
+			if err := lstn.Close(); err != nil {
+				err = errors.Wrap(err, "error occurred on listener close")
+				s.l.Error(err)
+			}
 		}
 
 		close(s.done)
 	}()
+
+	lstn, err := net.Listen(addr.Network(), addr.String())
+	if err != nil {
+		return errors.Wrap(err, "couldn't init listener")
+	}
 
 	for {
 		conn, err := lstn.Accept()

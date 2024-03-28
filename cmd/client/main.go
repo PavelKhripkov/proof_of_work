@@ -14,40 +14,39 @@ import (
 )
 
 func main() {
+	// Config.
 	cfg := Config{}
 	err := config.LoadConfig("POW_CLIENT", &cfg)
 	if err != nil {
 		panic(err.Error())
 	}
 
-	version := cfg.Version
-	target := cfg.Target
-	concurr := cfg.Concurrency
-	remoteAddr := cfg.RemoteAddr
-	logLevel := cfg.LogLevel
-	requestTimeout := cfg.RequestTimeout
-
+	// Logger.
 	logger := logrus.New()
 	logger.SetOutput(os.Stdout)
-	lvl, err := logrus.ParseLevel(logLevel)
+	lvl, err := logrus.ParseLevel(cfg.LogLevel)
 	if err != nil {
 		lvl = logrus.InfoLevel
 	}
 	logger.SetLevel(lvl)
 
-	h := hashcash.NewHashcash(sha256.New, concurr)
+	// Hashcash.
+	h := hashcash.NewHashcash(sha256.New, cfg.Concurrency)
 
-	proto := pow.NewPoW(logger.WithField("module", "pow"), version, target, h)
+	// Proto.
+	proto := pow.NewPoW(logger.WithField("module", "pow"), cfg.Version, cfg.Target, h, 0)
 
+	// Client.
 	c := client.NewClient(logger.WithField("module", "client"), proto)
 
 	doParams := client.DoParams{
-		RemoteAddr: remoteAddr,
+		RemoteAddr: cfg.RemoteAddr,
 		Method:     protocol.SMGetQuote,
 	}
 
+	// Run client in cycle and exit.
 	for i := 0; i < 3; i++ {
-		ctxClient, cancelClient := context.WithTimeout(context.Background(), requestTimeout)
+		ctxClient, cancelClient := context.WithTimeout(context.Background(), cfg.RequestTimeout)
 
 		res, err := c.Do(ctxClient, doParams)
 		if err != nil {
