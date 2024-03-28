@@ -6,9 +6,12 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"io"
-	"pow/internal/protocol"
+	"pow/pkg/protocol"
 )
 
+// pow is a service that helps protect a server from DoS attacks.
+// The service checks whether the client has completed some work before they can access the server's resources.
+// The service uses a modified Hashcash algorithm under the hood.
 type pow struct {
 	l        *logrus.Entry
 	version  byte
@@ -16,6 +19,7 @@ type pow struct {
 	hashcash hashcash
 }
 
+// NewPoW create a new Proof of Work service.
 func NewPoW(l *logrus.Entry, version byte, target byte, hashcash hashcash) *pow {
 	return &pow{
 		l:        l,
@@ -25,6 +29,7 @@ func NewPoW(l *logrus.Entry, version byte, target byte, hashcash hashcash) *pow 
 	}
 }
 
+// SendClientRequest used by client to send a request to remote server.
 func (s *pow) SendClientRequest(ctx context.Context, conn io.Writer, localIP string, method protocol.SeverMethod) error {
 	header, err := s.prepareHeader(ctx, localIP)
 	if err != nil {
@@ -51,6 +56,7 @@ func (s *pow) SendClientRequest(ctx context.Context, conn io.Writer, localIP str
 	return nil
 }
 
+// ReceiveServerResponse used by client to receive service response.
 func (s *pow) ReceiveServerResponse(ctx context.Context, conn io.Reader) (protocol.ServerResponseCode, []byte, error) {
 	var buf bytes.Buffer
 	n, err := io.Copy(&buf, conn)
@@ -70,6 +76,7 @@ func (s *pow) ReceiveServerResponse(ctx context.Context, conn io.Reader) (protoc
 	return resp.Code, resp.Body, nil
 }
 
+// HandleClientRequest used by server to handle client request.
 func (s *pow) HandleClientRequest(
 	ctx context.Context,
 	conn io.Reader,
@@ -110,6 +117,7 @@ func (s *pow) HandleClientRequest(
 	return protocol.SMGetQuote, nil
 }
 
+// SendServerResponse used by server to send response to client.
 func (s *pow) SendServerResponse(ctx context.Context, conn io.Writer, code protocol.ServerResponseCode, payload []byte) error {
 	resp := ServerResponse{
 		Code: code,

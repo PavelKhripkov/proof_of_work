@@ -10,6 +10,7 @@ import (
 	"time"
 )
 
+// readClientRequest reads a client request and verifies that it satisfies basic protocol requirements.
 func (s *pow) readClientRequest(ctx context.Context, conn io.Reader) ([]byte, error) {
 	requestBytes := make([]byte, ClientRequestSize+1)
 
@@ -28,6 +29,7 @@ func (s *pow) readClientRequest(ctx context.Context, conn io.Reader) ([]byte, er
 	return requestBytes, nil
 }
 
+// validateHeaderHash checks that header meets protocol requirements and service settings.
 func (s *pow) validateHeaderHash(ctx context.Context, headerBytes []byte) ([]byte, error) {
 	if len(headerBytes) != ClientRequestHeaderSize {
 		return nil, ErrUnknownProtocol
@@ -44,6 +46,7 @@ func (s *pow) validateHeaderHash(ctx context.Context, headerBytes []byte) ([]byt
 	return hash, nil
 }
 
+// prepareHeader returns client request header that satisfies protocol requirements and service settings.
 func (s *pow) prepareHeader(ctx context.Context, localIP string) (*ClientRequestHeader, error) {
 	resource := net.ParseIP(localIP)
 	if resource == nil {

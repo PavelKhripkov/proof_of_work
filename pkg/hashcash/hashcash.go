@@ -3,17 +3,20 @@ package hashcash
 import (
 	"context"
 	"encoding/binary"
+	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 	"hash"
 	"math"
 )
 
+// hashcash represents hashcash service.
 type hashcash struct {
 	concurrency uint
 	hashFunc    func() hash.Hash
 }
 
-func NewHashcash(hashFunc func() hash.Hash, concurrency uint) (*hashcash, error) {
+// NewHashcash creates new hashcash instance.
+func NewHashcash(hashFunc func() hash.Hash, concurrency uint) *hashcash {
 	if concurrency == 0 {
 		concurrency = 1
 	}
@@ -21,12 +24,16 @@ func NewHashcash(hashFunc func() hash.Hash, concurrency uint) (*hashcash, error)
 	return &hashcash{
 		concurrency: concurrency,
 		hashFunc:    hashFunc,
-	}, nil
+	}
 }
 
+// FindNonce searches a nonce with bruteforce algorithm.
+// Can run multiple workers concurrently (concurrency factor specified on service creation),
+// reducing the time spent to find matched nonce.
 func (s *hashcash) FindNonce(ctx context.Context, input []byte, target uint) ([]byte, error) {
-	if uint(len(input)*8) < target {
-		return nil, ErrWrongValue
+	hashBitSize := uint(s.hashFunc().Size()) * 8
+	if hashBitSize < target {
+		return nil, errors.Wrapf(ErrWrongValue, "hash size %d less then target %d", hashBitSize, target)
 	}
 
 	batch := math.MaxUint64 / uint64(s.concurrency)
@@ -71,6 +78,7 @@ func (s *hashcash) FindNonce(ctx context.Context, input []byte, target uint) ([]
 	return nil, ErrNoMatch
 }
 
+// findNonce is a worker of FindNonce that can be run in goroutine with specified nonce window.
 func (s *hashcash) findNonce(ctx context.Context, hasher hash.Hash, input []byte, target uint, resChan chan<- []byte, startNonce, endNonce uint64) error {
 	l := len(input)
 	temp := make([]byte, l+8)
@@ -118,12 +126,15 @@ func (s *hashcash) findNonce(ctx context.Context, hasher hash.Hash, input []byte
 	return nil
 }
 
+// Hash returns hash calculated from input using target hash func specified on service creation.
 func (s *hashcash) Hash(input []byte) []byte {
 	hasher := s.hashFunc()
 	_, _ = hasher.Write(input) // Never returns an error. https://pkg.go.dev/hash#Hash
 	return hasher.Sum(nil)
 }
 
+// ValidateHash checks if first target bits of input are equal to zero.
+// Returns false in case input has fewer bits than specified by target.
 func (s *hashcash) ValidateHash(input []byte, target uint) bool {
 	if uint(len(input)*8) < target {
 		return false

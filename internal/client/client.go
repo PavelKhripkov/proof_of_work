@@ -5,17 +5,19 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"net"
-	"pow/internal/protocol"
+	"pow/pkg/protocol"
 )
 
-const tcp = "tcp"
+const tcp = "tcp" // TODO leave this choice to the consumer.
 
+// client represents a service that is making some work before asking a server for some resources.
 type client struct {
 	l     *logrus.Entry
 	proto proto
 	done  chan struct{}
 }
 
+// NewClient returns new client instance.
 func NewClient(l *logrus.Entry, proto proto) *client {
 	return &client{
 		l:     l,
@@ -24,11 +26,13 @@ func NewClient(l *logrus.Entry, proto proto) *client {
 	}
 }
 
+// DoParams is used to provide requires params for Do method.
 type DoParams struct {
 	RemoteAddr string
 	Method     protocol.SeverMethod
 }
 
+// Do makes request to server, processes result and returns payload in case a server replies with no error.
 func (s *client) Do(ctx context.Context, params DoParams) ([]byte, error) {
 	conn, err := net.Dial(tcp, params.RemoteAddr)
 	if err != nil {

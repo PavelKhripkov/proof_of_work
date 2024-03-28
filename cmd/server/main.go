@@ -8,11 +8,11 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"pow/internal/config"
-	"pow/internal/protocol/pow"
 	"pow/internal/server"
 	"pow/internal/storage/redis_storage"
+	"pow/pkg/config"
 	"pow/pkg/hashcash"
+	"pow/pkg/protocol/pow"
 	"syscall"
 )
 
@@ -44,10 +44,7 @@ func main() {
 	}
 	logger.SetLevel(lvl)
 
-	h, err := hashcash.NewHashcash(sha256.New, concurr)
-	if err != nil {
-		panic(err)
-	}
+	h := hashcash.NewHashcash(sha256.New, concurr)
 
 	opt, err := redis.ParseURL(redisURL)
 	if err != nil {

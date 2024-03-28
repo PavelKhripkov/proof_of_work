@@ -5,6 +5,7 @@ import (
 	"github.com/pkg/errors"
 )
 
+// LoadConfig parses env variables into provided provided struct.
 func LoadConfig(prefix string, spec interface{}) error {
 	err := envconfig.Process(prefix, spec)
 	if err != nil {

@@ -2,6 +2,7 @@ package main
 
 import "time"
 
+// Config represents server config.
 type Config struct {
 	Version         byte          `envconfig:"VERSION" default:"0"`
 	Target          byte          `envconfig:"TARGET" default:"20"`

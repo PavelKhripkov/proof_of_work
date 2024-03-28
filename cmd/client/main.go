@@ -7,10 +7,10 @@ import (
 	"github.com/sirupsen/logrus"
 	"os"
 	"pow/internal/client"
-	"pow/internal/config"
-	"pow/internal/protocol"
-	"pow/internal/protocol/pow"
+	"pow/pkg/config"
 	"pow/pkg/hashcash"
+	"pow/pkg/protocol"
+	"pow/pkg/protocol/pow"
 )
 
 func main() {
@@ -35,10 +35,7 @@ func main() {
 	}
 	logger.SetLevel(lvl)
 
-	h, err := hashcash.NewHashcash(sha256.New, concurr)
-	if err != nil {
-		panic(err)
-	}
+	h := hashcash.NewHashcash(sha256.New, concurr)
 
 	proto := pow.NewPoW(logger.WithField("module", "pow"), version, target, h)
 

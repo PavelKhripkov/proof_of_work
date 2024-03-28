@@ -5,12 +5,11 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"net"
-	"pow/internal/protocol"
+	"pow/pkg/protocol"
 	"time"
 )
 
-const serveTimeout = 3 * time.Second
-
+// server is a web server that uses some PoW services to protect itself from DoS attacks.
 type server struct {
 	l             *logrus.Entry
 	storage       storage
@@ -20,6 +19,7 @@ type server struct {
 	done          chan struct{}
 }
 
+// NewServer returns a new server instance.
 func NewServer(l *logrus.Entry, storage storage, proto proto, respTimeout time.Duration, hashRetention time.Duration) *server {
 	return &server{
 		l:             l,
@@ -31,6 +31,7 @@ func NewServer(l *logrus.Entry, storage storage, proto proto, respTimeout time.D
 	}
 }
 
+// Run starts the server.
 func (s *server) Run(ctx context.Context, addr net.Addr) error {
 	lstn, err := net.Listen(addr.Network(), addr.String())
 	if err != nil {
@@ -61,6 +62,7 @@ func (s *server) Run(ctx context.Context, addr net.Addr) error {
 	}
 }
 
+// serveConn serves client's connection.
 func (s *server) serveConn(ctx context.Context, conn net.Conn) {
 	var err error
 
@@ -105,7 +107,7 @@ func (s *server) serveConn(ctx context.Context, conn net.Conn) {
 	case protocol.SMGetQuote:
 		err = s.sendQuote(ctx, conn)
 	default:
-		err = s.sendError(ctx, conn, protocol.SRCUnknownServerMethod)
+		err = s.sendError(ctx, conn, protocol.SRCUnknown)
 	}
 
 	if err != nil {
@@ -115,6 +117,7 @@ func (s *server) serveConn(ctx context.Context, conn net.Conn) {
 	return
 }
 
+// sendQuote sends a quote into connection as a response to a client.
 func (s *server) sendQuote(ctx context.Context, conn net.Conn) error {
 	payload := randQuote()
 
@@ -125,6 +128,7 @@ func (s *server) sendQuote(ctx context.Context, conn net.Conn) error {
 	return nil
 }
 
+// sendError sends an error response to client.
 func (s *server) sendError(ctx context.Context, conn net.Conn, code protocol.ServerResponseCode) error {
 	if err := s.proto.SendServerResponse(ctx, conn, protocol.SRCOK, nil); err != nil {
 		return errors.Wrap(err, "couldn't send server response")
