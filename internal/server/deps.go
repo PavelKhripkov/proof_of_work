@@ -10,7 +10,7 @@ type proto interface {
 	// HandleClientRequest used by server to handle client request.
 	HandleClientRequest(ctx context.Context, conn io.Reader, remoteHost string, checker func(context.Context, string, []byte) (bool, error)) (protocol.SeverMethod, error)
 	// SendServerResponse used by server to send response to client.
-	SendServerResponse(ctx context.Context, conn io.Writer, code protocol.ServerResponseCode, payload []byte) error
+	SendServerResponse(conn io.Writer, code protocol.ServerResponseCode, payload []byte) error
 }
 
 type storage interface {

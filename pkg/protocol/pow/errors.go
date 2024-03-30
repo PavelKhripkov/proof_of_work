@@ -10,6 +10,6 @@ var (
 	ErrEmptyResponse     = errors.New("empty response")
 	ErrWrongClientID     = errors.New("wrong client ID")
 	ErrWrongVersion      = errors.New("wrong protocol version")
-	ErrTargetBits        = errors.New("wrong target bits")
+	ErrWrongTargetBits   = errors.New("wrong target bits")
 	ErrInvalidHeaderTime = errors.New("wrong header time")
 )

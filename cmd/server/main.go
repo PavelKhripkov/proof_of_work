@@ -44,6 +44,10 @@ func main() {
 		panic("couldn't parse redisURL")
 	}
 	redisClient := redis.NewClient(opt)
+	if _, err = redisClient.Ping(ctx).Result(); err != nil {
+		panic(err)
+	}
+
 	redisStorage := redis_storage.NewRedis(redisClient, cfg.HashExp)
 
 	// Proto.
@@ -93,3 +97,8 @@ func main() {
 	// Waiting server is done.
 	s.Done()
 }
+
+// TODO proto tests.
+// README
+// dockerfile
+// makefile

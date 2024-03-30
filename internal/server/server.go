@@ -6,6 +6,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"net"
 	"pow/pkg/protocol"
+	"pow/pkg/protocol/pow"
 	"time"
 )
 
@@ -87,7 +88,7 @@ func (s *server) serveConn(ctx context.Context, conn net.Conn) {
 
 	remoteHostPort := conn.RemoteAddr().String()
 	if remoteHostPort == "" {
-		err = s.sendError(ctx, conn, protocol.SRCCantIdentifyClient)
+		err = s.sendError(conn, protocol.SRCCannotIdentifyClient)
 		return
 	}
 
@@ -100,6 +101,8 @@ func (s *server) serveConn(ctx context.Context, conn net.Conn) {
 
 	method, err := s.proto.HandleClientRequest(ctx, conn, remoteHost, s.storage.GetSetHashByClient)
 	if err != nil {
+		code := protoErrorToServerCode(err)
+		err = s.sendError(conn, code)
 		return
 	}
 
@@ -107,9 +110,9 @@ func (s *server) serveConn(ctx context.Context, conn net.Conn) {
 	case protocol.SMNoOp:
 		return
 	case protocol.SMGetQuote:
-		err = s.sendQuote(ctx, conn)
+		err = s.sendQuote(conn)
 	default:
-		err = s.sendError(ctx, conn, protocol.SRCUnknown)
+		err = s.sendError(conn, protocol.SRCUnknownError)
 	}
 
 	if err != nil {
@@ -119,11 +122,34 @@ func (s *server) serveConn(ctx context.Context, conn net.Conn) {
 	return
 }
 
+func protoErrorToServerCode(err error) (res protocol.ServerResponseCode) {
+	switch {
+	case errors.Is(err, pow.ErrWrongClientID):
+		res = protocol.SRCCannotIdentifyClient
+	case errors.Is(err, pow.ErrWrongVersion):
+		res = protocol.SRCWrongVersion
+	case errors.Is(err, pow.ErrWrongTargetBits):
+		res = protocol.SRCWrongTargetBits
+	case errors.Is(err, pow.ErrHashAlreadyUsed):
+		res = protocol.SRCHashAlreadyUsed
+	case errors.Is(err, pow.ErrUnknownProtocol):
+		res = protocol.SRCUnknownProtocol
+	case errors.Is(err, pow.ErrInvalidHeader):
+		res = protocol.SRCInvalidHeader
+	case errors.Is(err, pow.ErrInvalidHeaderTime):
+		res = protocol.SRCInvalidHeaderTime
+	default:
+		res = protocol.SRCUnknownError
+	}
+
+	return
+}
+
 // sendQuote sends a quote into connection as a response to a client.
-func (s *server) sendQuote(ctx context.Context, conn net.Conn) error {
+func (s *server) sendQuote(conn net.Conn) error {
 	payload := randQuote()
 
-	if err := s.proto.SendServerResponse(ctx, conn, protocol.SRCOK, []byte(payload)); err != nil {
+	if err := s.proto.SendServerResponse(conn, protocol.SRCOK, []byte(payload)); err != nil {
 		return errors.Wrap(err, "couldn't send server response")
 	}
 
@@ -131,8 +157,8 @@ func (s *server) sendQuote(ctx context.Context, conn net.Conn) error {
 }
 
 // sendError sends an error response to client.
-func (s *server) sendError(ctx context.Context, conn net.Conn, code protocol.ServerResponseCode) error {
-	if err := s.proto.SendServerResponse(ctx, conn, protocol.SRCOK, nil); err != nil {
+func (s *server) sendError(conn net.Conn, code protocol.ServerResponseCode) error {
+	if err := s.proto.SendServerResponse(conn, code, nil); err != nil {
 		return errors.Wrap(err, "couldn't send server response")
 	}
 

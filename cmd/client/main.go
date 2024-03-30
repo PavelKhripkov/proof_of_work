@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"github.com/sirupsen/logrus"
+	"net"
 	"os"
 	"pow/internal/client"
 	"pow/pkg/config"
@@ -39,8 +40,19 @@ func main() {
 	// Client.
 	c := client.NewClient(logger.WithField("module", "client"), proto)
 
+	addr := net.ParseIP(cfg.RemoteAddr)
+	if addr == nil {
+		panic("server address is not specified")
+	}
+
+	srvAddr := net.TCPAddr{
+		IP:   addr,
+		Port: cfg.RemotePort,
+		Zone: "",
+	}
+
 	doParams := client.DoParams{
-		RemoteAddr: cfg.RemoteAddr,
+		ServerAddr: &srvAddr,
 		Method:     protocol.SMGetQuote,
 	}
 

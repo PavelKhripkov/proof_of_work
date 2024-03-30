@@ -23,6 +23,19 @@ type clientRequestHeader struct {
 	Counter  uint64
 }
 
+// newClientRequestHeader returns new clientRequestHeader created according to fixed-size specs of current protocol.
+func newClientRequestHeader(ver, bits byte, date time.Time, resource net.IP, counter uint64) *clientRequestHeader {
+	res := make([]byte, 16)
+	copy(res[16-len(resource):], resource)
+	return &clientRequestHeader{
+		Ver:      ver,
+		Bits:     bits,
+		Date:     time.Unix(0, date.UnixNano()),
+		Resource: res,
+		Counter:  counter,
+	}
+}
+
 // Marshal returns marshalled header.
 func (s clientRequestHeader) Marshal() []byte {
 	l := 1 + 1 + 8 + 16 + 8

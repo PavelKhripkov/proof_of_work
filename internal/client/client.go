@@ -8,14 +8,10 @@ import (
 	"pow/pkg/protocol"
 )
 
-// TODO leave this choice to the consumer.
-const tcp = "tcp"
-
 // client represents a service that is making some work before asking a server for some resources.
 type client struct {
 	l     *logrus.Entry
 	proto proto
-	done  chan struct{}
 }
 
 // NewClient returns new client instance.
@@ -23,19 +19,18 @@ func NewClient(l *logrus.Entry, proto proto) *client {
 	return &client{
 		l:     l,
 		proto: proto,
-		done:  make(chan struct{}),
 	}
 }
 
 // DoParams is used to provide requires params for Do method.
 type DoParams struct {
-	RemoteAddr string
+	ServerAddr net.Addr
 	Method     protocol.SeverMethod
 }
 
 // Do makes request to server, processes result and returns payload in case a server replies with no error.
 func (s *client) Do(ctx context.Context, params DoParams) ([]byte, error) {
-	conn, err := net.Dial(tcp, params.RemoteAddr)
+	conn, err := net.Dial(params.ServerAddr.Network(), params.ServerAddr.String())
 	if err != nil {
 		return nil, errors.Wrap(err, "couldn't connect to host")
 	}
@@ -55,7 +50,7 @@ func (s *client) Do(ctx context.Context, params DoParams) ([]byte, error) {
 		return nil, err
 	}
 
-	code, payload, err := s.proto.ReceiveServerResponse(ctx, conn)
+	code, payload, err := s.proto.ReceiveServerResponse(conn)
 	if err != nil {
 		return nil, err
 	}
@@ -65,8 +60,4 @@ func (s *client) Do(ctx context.Context, params DoParams) ([]byte, error) {
 	}
 
 	return payload, nil
-}
-
-func (s *client) Done() {
-	<-s.done
 }

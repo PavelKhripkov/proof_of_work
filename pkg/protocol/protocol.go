@@ -14,14 +14,22 @@ const (
 type ServerResponseCode uint16
 
 const (
-	// SRCUnknown represents unknown response or response absence.
-	SRCUnknown ServerResponseCode = iota
+	// SRCUnknownError represents unknown response or response absence.
+	SRCUnknownError ServerResponseCode = iota
 	// SRCOK successful response result.
 	SRCOK
-	// SRCWrongNonce returned if client provided wrong nonce.
-	SRCWrongNonce
 	// SRCUnknownProtocol returned if server cannot recognize protocol.
 	SRCUnknownProtocol
-	// SRCCantIdentifyClient returned when server cannot identity client.
-	SRCCantIdentifyClient
+	// SRCCannotIdentifyClient returned when server cannot identity client.
+	SRCCannotIdentifyClient
+	// SRCWrongVersion returned when specified wrong version of protocol.
+	SRCWrongVersion
+	// SRCWrongTargetBits returned when specified wrong amount of target bits.
+	SRCWrongTargetBits
+	// SRCHashAlreadyUsed returned when hash already used by client.
+	SRCHashAlreadyUsed
+	// SRCInvalidHeader returned when provided wrong header.
+	SRCInvalidHeader
+	// SRCInvalidHeaderTime returned when header time is out of range.
+	SRCInvalidHeaderTime
 )

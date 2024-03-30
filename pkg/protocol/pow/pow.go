@@ -15,7 +15,7 @@ import (
 // The service uses a modified Hashcash algorithm under the hood.
 type pow struct {
 	l                  *logrus.Entry
-	version            byte
+	version            byte // Currently no logic bound to the version.
 	target             byte
 	hashcash           hashcash
 	headerTimeInterval time.Duration
@@ -47,9 +47,6 @@ func (s *pow) SendClientRequest(ctx context.Context, conn io.Writer, localIP str
 	s.l.WithField("request", req).Debug("Prepared client request.")
 
 	reqBytes := req.Marshal()
-	if err != nil {
-		return errors.Wrap(err, "couldn't marshal client request")
-	}
 
 	_, err = conn.Write(reqBytes)
 	if err != nil {
@@ -60,20 +57,20 @@ func (s *pow) SendClientRequest(ctx context.Context, conn io.Writer, localIP str
 }
 
 // ReceiveServerResponse used by client to receive service response.
-func (s *pow) ReceiveServerResponse(ctx context.Context, conn io.Reader) (protocol.ServerResponseCode, []byte, error) {
+func (s *pow) ReceiveServerResponse(conn io.Reader) (protocol.ServerResponseCode, []byte, error) {
 	var buf bytes.Buffer
 	n, err := io.Copy(&buf, conn)
 	if err != nil {
-		return protocol.SRCUnknown, nil, errors.Wrap(err, "couldn't read from connection")
+		return protocol.SRCUnknownError, nil, errors.Wrap(err, "couldn't read from connection")
 	}
 
 	if n == 0 {
-		return protocol.SRCUnknown, nil, ErrEmptyResponse
+		return protocol.SRCUnknownError, nil, ErrEmptyResponse
 	}
 
 	resp := serverResponse{}
 	if err = resp.Unmarshal(buf.Bytes()); err != nil {
-		return protocol.SRCUnknown, nil, errors.Wrap(err, "couldn't unmarshal server response")
+		return protocol.SRCUnknownError, nil, errors.Wrap(err, "couldn't unmarshal server response")
 	}
 
 	return resp.Code, resp.Body, nil
@@ -83,16 +80,16 @@ func (s *pow) ReceiveServerResponse(ctx context.Context, conn io.Reader) (protoc
 func (s *pow) HandleClientRequest(
 	ctx context.Context,
 	conn io.Reader,
-	remoteHost string,
+	clientIP string,
 	checker func(context.Context, string, []byte) (bool, error),
 ) (protocol.SeverMethod, error) {
 
-	requestBytes, err := s.readClientRequest(ctx, conn)
+	requestBytes, err := s.readClientRequest(conn)
 	if err != nil {
 		return protocol.SMNoOp, errors.Wrap(err, "couldn't read client request")
 	}
 
-	hash, err := s.validateHeaderHash(ctx, requestBytes[:clientRequestHeaderSize])
+	hash, err := s.validateHeaderHash(requestBytes[:clientRequestHeaderSize])
 	if err != nil {
 		return protocol.SMNoOp, err
 	}
@@ -104,11 +101,11 @@ func (s *pow) HandleClientRequest(
 
 	s.l.WithField("request", request).Debug("Got client request.")
 
-	if err = s.validateHeader(request.Header, remoteHost); err != nil {
+	if err = s.validateHeader(request.Header, clientIP); err != nil {
 		return protocol.SMNoOp, err
 	}
 
-	allowed, err := checker(ctx, remoteHost, hash)
+	allowed, err := checker(ctx, clientIP, hash)
 	if err != nil {
 		return protocol.SMNoOp, err
 	}
@@ -121,17 +118,17 @@ func (s *pow) HandleClientRequest(
 }
 
 // validateHeader checks if header settings meet server requirements.
-func (s *pow) validateHeader(header clientRequestHeader, remoteHost string) error {
-	if clientIP := header.Resource.String(); clientIP != remoteHost {
-		return errors.Wrapf(ErrWrongClientID, "client specified their ID as %s, server identified client as %s", header.Resource.String(), remoteHost)
+func (s *pow) validateHeader(header clientRequestHeader, clientIP string) error {
+	if headerIP := header.Resource.String(); headerIP != clientIP {
+		return errors.Wrapf(ErrWrongClientID, "client specified their ID as %s, server identified client as %s", headerIP, clientIP)
 	}
 
 	if s.version != header.Ver {
 		return errors.Wrapf(ErrWrongVersion, "client version %d doesn't match server version %d", header.Ver, s.version)
 	}
 
-	if s.target < header.Bits {
-		return errors.Wrapf(ErrTargetBits, "client's target bits %d less then server's target bits %d", header.Bits, s.target)
+	if header.Bits < s.target {
+		return errors.Wrapf(ErrWrongTargetBits, "client's target bits %d less then server's target bits %d", header.Bits, s.target)
 	}
 
 	now := time.Now()
@@ -143,7 +140,7 @@ func (s *pow) validateHeader(header clientRequestHeader, remoteHost string) erro
 }
 
 // SendServerResponse used by server to send response to client.
-func (s *pow) SendServerResponse(ctx context.Context, conn io.Writer, code protocol.ServerResponseCode, payload []byte) error {
+func (s *pow) SendServerResponse(conn io.Writer, code protocol.ServerResponseCode, payload []byte) error {
 	resp := serverResponse{
 		Code: code,
 		Body: payload,
