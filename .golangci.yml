@@ -11,8 +11,6 @@ output:
 
 linters:
   enable-all: true
-  disable:
-    - interfacebloat
 
   fast: false
 

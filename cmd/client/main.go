@@ -40,19 +40,21 @@ func main() {
 	// Client.
 	c := client.NewClient(logger.WithField("module", "client"), proto)
 
-	addr := net.ParseIP(cfg.RemoteAddr)
-	if addr == nil {
-		panic("server address is not specified")
+	//
+	host, _, err := net.SplitHostPort(cfg.ServerAddr)
+	if err != nil {
+		panic(err)
 	}
-
-	srvAddr := net.TCPAddr{
-		IP:   addr,
-		Port: cfg.RemotePort,
-		Zone: "",
+	ips, err := net.LookupIP(host)
+	if err != nil {
+		panic(err)
 	}
+	logger.WithField("ips", ips).Debug()
+	//
 
 	doParams := client.DoParams{
-		ServerAddr: &srvAddr,
+		ServerAddr: cfg.ServerAddr,
+		Network:    "tcp",
 		Method:     protocol.SMGetQuote,
 	}
 
@@ -64,7 +66,7 @@ func main() {
 		if err != nil {
 			fmt.Printf("Got error: '%s'\n", err.Error())
 		} else {
-			fmt.Println(string(res))
+			fmt.Println("GOT QUOTE: ", string(res))
 		}
 
 		cancelClient()

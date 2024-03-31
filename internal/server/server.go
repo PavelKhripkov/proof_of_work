@@ -147,6 +147,7 @@ func protoErrorToServerCode(err error) (res protocol.ServerResponseCode) {
 
 // sendQuote sends a quote into connection as a response to a client.
 func (s *server) sendQuote(conn net.Conn) error {
+	s.l.Info("Responding client with quote.")
 	payload := randQuote()
 
 	if err := s.proto.SendServerResponse(conn, protocol.SRCOK, []byte(payload)); err != nil {
@@ -158,6 +159,7 @@ func (s *server) sendQuote(conn net.Conn) error {
 
 // sendError sends an error response to client.
 func (s *server) sendError(conn net.Conn, code protocol.ServerResponseCode) error {
+	s.l.WithField("code", code).Info("Responding client with error.")
 	if err := s.proto.SendServerResponse(conn, code, nil); err != nil {
 		return errors.Wrap(err, "couldn't send server response")
 	}

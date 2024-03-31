@@ -24,13 +24,15 @@ func NewClient(l *logrus.Entry, proto proto) *client {
 
 // DoParams is used to provide requires params for Do method.
 type DoParams struct {
-	ServerAddr net.Addr
+	ServerAddr string
+	Network    string
 	Method     protocol.SeverMethod
 }
 
 // Do makes request to server, processes result and returns payload in case a server replies with no error.
 func (s *client) Do(ctx context.Context, params DoParams) ([]byte, error) {
-	conn, err := net.Dial(params.ServerAddr.Network(), params.ServerAddr.String())
+	s.l.WithField("params", params).Debug()
+	conn, err := net.Dial(params.Network, params.ServerAddr)
 	if err != nil {
 		return nil, errors.Wrap(err, "couldn't connect to host")
 	}

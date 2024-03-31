@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/sha256"
+	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
 	"github.com/sirupsen/logrus"
 	"net"
@@ -45,6 +46,7 @@ func main() {
 	}
 	redisClient := redis.NewClient(opt)
 	if _, err = redisClient.Ping(ctx).Result(); err != nil {
+		err = errors.Wrap(err, "couldn't connect to redis")
 		panic(err)
 	}
 
@@ -97,8 +99,3 @@ func main() {
 	// Waiting server is done.
 	s.Done()
 }
-
-// TODO proto tests.
-// README
-// dockerfile
-// makefile
