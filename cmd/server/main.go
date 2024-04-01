@@ -55,13 +55,14 @@ func main() {
 
 	// Server.
 	params := server.NewServerParams{
-		Logger:        logger.WithField("module", "server"),
-		Storage:       redisStorage,
-		Hashcash:      h,
-		RespTimeout:   cfg.ResponseTimeout,
-		ChallengeSize: cfg.ChallengeSize,
-		TargetBits:    cfg.TargetBits,
-		ChallengeTTL:  cfg.ChallengeTTL,
+		Logger:          logger.WithField("module", "server"),
+		Storage:         redisStorage,
+		Hashcash:        h,
+		RespTimeout:     cfg.ResponseTimeout,
+		RefreshDeadline: true,
+		ChallengeSize:   cfg.ChallengeSize,
+		TargetBits:      cfg.TargetBits,
+		ChallengeTTL:    cfg.ChallengeTTL,
 	}
 	s := server.NewServer(params)
 

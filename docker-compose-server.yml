@@ -3,6 +3,8 @@ services:
   server:
     build:
       target: server
+    depends_on:
+      - redis
     environment:
       - POW_SERVER_CONCURRENCY=${POW_SERVER_CONCURRENCY:-1}
       - POW_SERVER_REDIS_URL=${POW_SERVER_REDIS_URL:-redis://redis:6379/}

@@ -18,38 +18,41 @@ const tcp = "tcp"
 
 // Server is a web server that uses some PoW services to protect itself from DoS attacks.
 type Server struct {
-	l             *logrus.Entry
-	storage       storage
-	hashcash      hashcash
-	respTimeout   time.Duration
-	challengeSize byte
-	targetBits    byte
-	challengeTTL  time.Duration
-	done          chan struct{}
+	l               *logrus.Entry
+	storage         storage
+	hashcash        hashcash
+	respTimeout     time.Duration
+	refreshDeadline bool
+	challengeSize   byte
+	targetBits      byte
+	challengeTTL    time.Duration
+	done            chan struct{}
 }
 
 // NewServerParams contains parameters for NewServer function.
 type NewServerParams struct {
-	Logger        *logrus.Entry
-	Storage       storage
-	Hashcash      hashcash
-	RespTimeout   time.Duration
-	ChallengeSize byte
-	TargetBits    byte
-	ChallengeTTL  time.Duration
+	Logger          *logrus.Entry
+	Storage         storage
+	Hashcash        hashcash
+	RespTimeout     time.Duration
+	RefreshDeadline bool
+	ChallengeSize   byte
+	TargetBits      byte
+	ChallengeTTL    time.Duration
 }
 
 // NewServer returns a new server instance.
 func NewServer(p NewServerParams) *Server {
 	return &Server{
-		l:             p.Logger,
-		storage:       p.Storage,
-		hashcash:      p.Hashcash,
-		respTimeout:   p.RespTimeout,
-		challengeSize: p.ChallengeSize,
-		targetBits:    p.TargetBits,
-		challengeTTL:  p.ChallengeTTL,
-		done:          make(chan struct{}),
+		l:               p.Logger,
+		storage:         p.Storage,
+		hashcash:        p.Hashcash,
+		respTimeout:     p.RespTimeout,
+		refreshDeadline: p.RefreshDeadline,
+		challengeSize:   p.ChallengeSize,
+		targetBits:      p.TargetBits,
+		challengeTTL:    p.ChallengeTTL,
+		done:            make(chan struct{}),
 	}
 }
 
@@ -81,9 +84,7 @@ func (s *Server) Run(ctx context.Context, addr string) error {
 		}
 
 		go func() {
-			ctxServe, cancel := context.WithTimeout(ctx, s.respTimeout)
-			defer cancel()
-			s.serveConn(ctxServe, conn)
+			s.serveConn(ctx, conn)
 		}()
 	}
 }
@@ -102,8 +103,7 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 		}
 	}()
 
-	deadline, _ := ctx.Deadline()
-	if err = conn.SetDeadline(deadline); err != nil {
+	if err = conn.SetDeadline(time.Now().Add(s.respTimeout)); err != nil {
 		err = errors.Wrap(err, "couldn't set connection deadline")
 		return
 	}
@@ -132,7 +132,18 @@ func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 			return
 		}
 
-		// TODO Deadline could be refreshed to extend keep alive time.
+		// Refresh deadline.
+		if s.refreshDeadline &&
+			s.respTimeout != 0 &&
+			resp.Code == models.SRCOK &&
+			len(resp.Challenge) == 0 {
+
+			s.l.Debug("Refreshing deadline.")
+			if err = conn.SetDeadline(time.Now().Add(s.respTimeout)); err != nil {
+				err = errors.Wrap(err, "couldn't refresh connection deadline")
+				return
+			}
+		}
 	}
 }
 
