@@ -37,6 +37,12 @@ To run in container:
 For local run additionally need:
 * Redis v7.2.4 (should work from v6.2.0)
 
+### Before starting
+Run the following command to download required packages and tools:
+```sh
+make init
+```
+
 ### Run server
 There is a docker compose file that can be used to run server. 
 But the easiest way is to type:
@@ -67,10 +73,8 @@ make client-down
 
 ### Run tests
 There are tests and linters runner in the [Makefile](Makefile). 
-First prepare the tools and then run both of them with a single command:
-```sh
-make init
-```
+Run both of them with a single command:
+
 ```sh
 make test
 ```
