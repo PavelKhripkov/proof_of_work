@@ -2,36 +2,59 @@ package server
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/gob"
+	"io"
+	"net"
+	"time"
+
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"net"
-	"pow/pkg/protocol"
-	"pow/pkg/protocol/pow"
-	"time"
+
+	"pow/internal/models"
 )
 
-// server is a web server that uses some PoW services to protect itself from DoS attacks.
-type server struct {
-	l           *logrus.Entry
-	storage     storage
-	proto       proto
-	respTimeout time.Duration
-	done        chan struct{}
+const tcp = "tcp"
+
+// Server is a web server that uses some PoW services to protect itself from DoS attacks.
+type Server struct {
+	l             *logrus.Entry
+	storage       storage
+	hashcash      hashcash
+	respTimeout   time.Duration
+	challengeSize byte
+	targetBits    byte
+	challengeTTL  time.Duration
+	done          chan struct{}
+}
+
+// NewServerParams contains parameters for NewServer function.
+type NewServerParams struct {
+	Logger        *logrus.Entry
+	Storage       storage
+	Hashcash      hashcash
+	RespTimeout   time.Duration
+	ChallengeSize byte
+	TargetBits    byte
+	ChallengeTTL  time.Duration
 }
 
 // NewServer returns a new server instance.
-func NewServer(l *logrus.Entry, storage storage, proto proto, respTimeout time.Duration) *server {
-	return &server{
-		l:           l,
-		storage:     storage,
-		proto:       proto,
-		respTimeout: respTimeout,
-		done:        make(chan struct{}),
+func NewServer(p NewServerParams) *Server {
+	return &Server{
+		l:             p.Logger,
+		storage:       p.Storage,
+		hashcash:      p.Hashcash,
+		respTimeout:   p.RespTimeout,
+		challengeSize: p.ChallengeSize,
+		targetBits:    p.TargetBits,
+		challengeTTL:  p.ChallengeTTL,
+		done:          make(chan struct{}),
 	}
 }
 
 // Run starts the server.
-func (s *server) Run(ctx context.Context, addr net.Addr) error {
+func (s *Server) Run(ctx context.Context, addr string) error {
 	var lstn net.Listener
 
 	go func() {
@@ -46,7 +69,7 @@ func (s *server) Run(ctx context.Context, addr net.Addr) error {
 		close(s.done)
 	}()
 
-	lstn, err := net.Listen(addr.Network(), addr.String())
+	lstn, err := net.Listen(tcp, addr)
 	if err != nil {
 		return errors.Wrap(err, "couldn't init listener")
 	}
@@ -66,7 +89,7 @@ func (s *server) Run(ctx context.Context, addr net.Addr) error {
 }
 
 // serveConn serves client's connection.
-func (s *server) serveConn(ctx context.Context, conn net.Conn) {
+func (s *Server) serveConn(ctx context.Context, conn net.Conn) {
 	var err error
 
 	defer func() {
@@ -82,91 +105,111 @@ func (s *server) serveConn(ctx context.Context, conn net.Conn) {
 	deadline, _ := ctx.Deadline()
 	if err = conn.SetDeadline(deadline); err != nil {
 		err = errors.Wrap(err, "couldn't set connection deadline")
-
 		return
 	}
 
-	remoteHostPort := conn.RemoteAddr().String()
-	if remoteHostPort == "" {
-		err = s.sendError(conn, protocol.SRCCannotIdentifyClient)
-		return
+	decoder := gob.NewDecoder(conn)
+	encoder := gob.NewEncoder(conn)
+	req := models.ClientRequest{}
+	resp := models.ServerResponse{}
+
+	for {
+		err = decoder.Decode(&req)
+		if err != nil {
+			if err == io.EOF {
+				err = nil
+			}
+			return
+		}
+
+		resp, err = s.serveRequest(ctx, req)
+		if err != nil {
+			return
+		}
+
+		err = encoder.Encode(resp)
+		if err != nil {
+			return
+		}
+
+		// TODO Deadline could be refreshed to extend keep alive time.
 	}
+}
 
-	remoteHost, _, err := net.SplitHostPort(remoteHostPort)
-	if err != nil {
-		return
-	}
-
-	s.l.Debug("Serving connection from remote client ", remoteHost)
-
-	method, err := s.proto.HandleClientRequest(ctx, conn, remoteHost, s.storage.GetSetHashByClient)
-	if err != nil {
-		code := protoErrorToServerCode(err)
-		err = s.sendError(conn, code)
-		return
-	}
-
-	switch method {
-	case protocol.SMNoOp:
-		return
-	case protocol.SMGetQuote:
-		err = s.sendQuote(conn)
+// serveRequest routes client requests to an appropriate handler.
+func (s *Server) serveRequest(ctx context.Context, request models.ClientRequest) (models.ServerResponse, error) {
+	switch request.Method {
+	case models.SMGetChallenge:
+		return s.getChallengeHandler(ctx)
+	case models.SMGetQuote:
+		return s.getQuoteHandler(ctx, request)
 	default:
-		err = s.sendError(conn, protocol.SRCUnknownError)
+		return models.ServerResponse{Code: models.SRCUnknownMethod}, nil
 	}
+}
 
+// getChallengeHandler returns a new challenge.
+func (s *Server) getChallengeHandler(ctx context.Context) (resp models.ServerResponse, err error) {
+	challenge := make([]byte, s.challengeSize)
+	_, err = rand.Read(challenge)
 	if err != nil {
+		resp.Code = models.SRCInternalError
 		return
 	}
+
+	if err = s.storage.StoreChallenge(ctx, challenge, s.challengeTTL); err != nil {
+		resp.Code = models.SRCInternalError
+		return
+	}
+
+	resp.Challenge = challenge
+	resp.Target = s.targetBits
+	resp.Code = models.SRCOK
 
 	return
 }
 
-func protoErrorToServerCode(err error) (res protocol.ServerResponseCode) {
-	switch {
-	case errors.Is(err, pow.ErrWrongClientID):
-		res = protocol.SRCCannotIdentifyClient
-	case errors.Is(err, pow.ErrWrongVersion):
-		res = protocol.SRCWrongVersion
-	case errors.Is(err, pow.ErrWrongTargetBits):
-		res = protocol.SRCWrongTargetBits
-	case errors.Is(err, pow.ErrHashAlreadyUsed):
-		res = protocol.SRCHashAlreadyUsed
-	case errors.Is(err, pow.ErrUnknownProtocol):
-		res = protocol.SRCUnknownProtocol
-	case errors.Is(err, pow.ErrInvalidHeader):
-		res = protocol.SRCInvalidHeader
-	case errors.Is(err, pow.ErrInvalidHeaderTime):
-		res = protocol.SRCInvalidHeaderTime
-	default:
-		res = protocol.SRCUnknownError
+// getQuoteHandler returns a quote.
+func (s *Server) getQuoteHandler(ctx context.Context, request models.ClientRequest) (models.ServerResponse, error) {
+	code, err := s.checkChallenge(ctx, request)
+	if err != nil {
+		return models.ServerResponse{Code: models.SRCInternalError}, err
 	}
 
-	return
-}
-
-// sendQuote sends a quote into connection as a response to a client.
-func (s *server) sendQuote(conn net.Conn) error {
-	s.l.Info("Responding client with quote.")
-	payload := randQuote()
-
-	if err := s.proto.SendServerResponse(conn, protocol.SRCOK, []byte(payload)); err != nil {
-		return errors.Wrap(err, "couldn't send server response")
+	if code != models.SRCOK {
+		return models.ServerResponse{Code: code}, nil
 	}
 
-	return nil
+	return models.ServerResponse{
+		Code:      models.SRCOK,
+		Body:      []byte(randQuote()),
+		Challenge: nil,
+		Target:    0,
+	}, nil
 }
 
-// sendError sends an error response to client.
-func (s *server) sendError(conn net.Conn, code protocol.ServerResponseCode) error {
-	s.l.WithField("code", code).Info("Responding client with error.")
-	if err := s.proto.SendServerResponse(conn, code, nil); err != nil {
-		return errors.Wrap(err, "couldn't send server response")
+// checkChallenge checks whether the challenge valid.
+func (s *Server) checkChallenge(ctx context.Context, request models.ClientRequest) (models.ServerResponseCode, error) {
+	exists, err := s.storage.GetDelChallenge(ctx, request.Challenge)
+	if err != nil {
+		return models.SRCInternalError, err
 	}
 
-	return nil
+	if !exists {
+		return models.SRCWrongChallenge, nil
+	}
+
+	hash := s.hashcash.Hash(append(request.Challenge, request.Nonce...))
+
+	valid := s.hashcash.ValidateHash(hash, uint(s.targetBits))
+	if !valid {
+		return models.SRCWrongNonce, nil
+	}
+
+	return models.SRCOK, nil
 }
 
-func (s *server) Done() {
+// Done waits the server is stopped gracefully.
+func (s *Server) Done() {
 	<-s.done
 }

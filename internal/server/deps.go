@@ -2,20 +2,20 @@ package server
 
 import (
 	"context"
-	"io"
-	"pow/pkg/protocol"
+	"time"
 )
 
-type proto interface {
-	// HandleClientRequest used by server to handle client request.
-	HandleClientRequest(ctx context.Context, conn io.Reader, remoteHost string, checker func(context.Context, string, []byte) (bool, error)) (protocol.SeverMethod, error)
-	// SendServerResponse used by server to send response to client.
-	SendServerResponse(conn io.Writer, code protocol.ServerResponseCode, payload []byte) error
+type storage interface {
+	// StoreChallenge stores a challenge into DB.
+	StoreChallenge(ctx context.Context, challenge []byte, hashTTL time.Duration) (err error)
+	// GetDelChallenge extracts a challenge from DB, so it can't be used multiple times.
+	GetDelChallenge(ctx context.Context, challenge []byte) (bool, error)
 }
 
-type storage interface {
-	// GetSetHashByClient returns boolean value showing whether provided hash is allowed for provided client.
-	// Same hash can be used by a client only once in specified period of time.
-	// To fulfill this requirement, service stores that hash and checks if the client already used it recently.
-	GetSetHashByClient(ctx context.Context, client string, hash []byte) (bool, error)
+type hashcash interface {
+	// Hash returns hash calculated from input using target hash func specified on service creation.
+	Hash(input []byte) []byte
+	// ValidateHash checks if first target bits of input are equal to zero.
+	// Returns false in case input has fewer bits than specified by target.
+	ValidateHash(input []byte, target uint) bool
 }

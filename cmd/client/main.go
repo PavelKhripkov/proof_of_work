@@ -4,14 +4,13 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
-	"github.com/sirupsen/logrus"
-	"net"
 	"os"
+
+	"github.com/sirupsen/logrus"
+
 	"pow/internal/client"
 	"pow/pkg/config"
 	"pow/pkg/hashcash"
-	"pow/pkg/protocol"
-	"pow/pkg/protocol/pow"
 )
 
 func main() {
@@ -34,41 +33,54 @@ func main() {
 	// Hashcash.
 	h := hashcash.NewHashcash(sha256.New, cfg.Concurrency)
 
-	// Proto.
-	proto := pow.NewPoW(logger.WithField("module", "pow"), cfg.Version, cfg.Target, h, 0)
-
 	// Client.
-	c := client.NewClient(logger.WithField("module", "client"), proto)
+	c := client.NewClient(logger.WithField("module", "client"), h)
 
-	//
-	host, _, err := net.SplitHostPort(cfg.ServerAddr)
+	params := client.GetQuotesParams{
+		ServerAddr:    cfg.ServerAddr,
+		QuotesDesired: 5,
+	}
+
+	// Getting quotes.
+	fmt.Println("Requesting quote from the server")
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.RequestTimeout)
+
+	engageClient(ctx, c, params)
+	cancel()
+
+	// Providing wrong challenge.
+	fmt.Println("Providing wrong challenge to the server")
+	ctx, cancel = context.WithTimeout(context.Background(), cfg.RequestTimeout)
+
+	params.ProvideWrongChallenge = true
+	engageClient(ctx, c, params)
+	cancel()
+
+	// Providing wrong nonce.
+	fmt.Println("Providing wrong nonce to the server")
+	ctx, cancel = context.WithTimeout(context.Background(), cfg.RequestTimeout)
+
+	params.ProvideWrongChallenge = false
+	params.ProvideWrongNonce = true
+	engageClient(ctx, c, params)
+	cancel()
+
+	// Too few time to calculate nonce.
+	fmt.Println("Limiting time to calculate nonce")
+	ctx, cancel = context.WithTimeout(context.Background(), 1)
+
+	params.ProvideWrongNonce = false
+	engageClient(ctx, c, params)
+	cancel()
+}
+
+func engageClient(ctx context.Context, c *client.Client, params client.GetQuotesParams) {
+	res, err := c.GetQuotes(ctx, params)
 	if err != nil {
-		panic(err)
-	}
-	ips, err := net.LookupIP(host)
-	if err != nil {
-		panic(err)
-	}
-	logger.WithField("ips", ips).Debug()
-	//
-
-	doParams := client.DoParams{
-		ServerAddr: cfg.ServerAddr,
-		Network:    "tcp",
-		Method:     protocol.SMGetQuote,
-	}
-
-	// Run client in cycle and exit.
-	for i := 0; i < 3; i++ {
-		ctxClient, cancelClient := context.WithTimeout(context.Background(), cfg.RequestTimeout)
-
-		res, err := c.Do(ctxClient, doParams)
-		if err != nil {
-			fmt.Printf("Got error: '%s'\n", err.Error())
-		} else {
-			fmt.Println("GOT QUOTE: ", string(res))
+		fmt.Println("Got error, exiting: ", err.Error())
+	} else {
+		for _, quote := range res {
+			fmt.Println("A WISE QUOTE FROM THE SERVER: ", quote)
 		}
-
-		cancelClient()
 	}
 }

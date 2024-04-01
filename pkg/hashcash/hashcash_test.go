@@ -5,28 +5,13 @@ import (
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/sha512"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"hash"
 	"testing"
 	"time"
-)
 
-//func BenchmarkFindNonce(b *testing.B) {
-//	ctx := context.Background()
-//	hasher := sha1.New()
-//	for i := 0; i < b.N; i++ {
-//		_, _ = FindNonce(ctx, hasher, []byte("Hello"), 20)
-//	}
-//}
-//
-//func BenchmarkFindNonce2(b *testing.B) {
-//	ctx := context.Background()
-//	hasher := sha1.New()
-//	for i := 0; i < b.N; i++ {
-//		_, _ = FindNonce2(ctx, hasher, []byte("Hello"), 20)
-//	}
-//}
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
 
 func TestValidateHash(t *testing.T) {
 	t.Parallel()

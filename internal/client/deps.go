@@ -1,14 +1,10 @@
 package client
 
-import (
-	"context"
-	"io"
-	"pow/pkg/protocol"
-)
+import "context"
 
-type proto interface {
-	// SendClientRequest used by client to send a request to remote server.
-	SendClientRequest(ctx context.Context, conn io.Writer, clientID string, method protocol.SeverMethod) error
-	// ReceiveServerResponse used by client to receive service response.
-	ReceiveServerResponse(conn io.Reader) (protocol.ServerResponseCode, []byte, error)
+type hashcash interface {
+	// FindNonce searches a nonce with bruteforce algorithm.
+	// Can run multiple workers concurrently (concurrency factor specified on service creation),
+	// reducing the time spent to find matched nonce.
+	FindNonce(ctx context.Context, input []byte, target uint) ([]byte, error)
 }

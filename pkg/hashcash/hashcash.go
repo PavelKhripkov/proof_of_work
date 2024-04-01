@@ -3,19 +3,23 @@ package hashcash
 import (
 	"context"
 	"encoding/binary"
-	"github.com/pkg/errors"
-	"golang.org/x/sync/errgroup"
 	"hash"
 	"math"
+
+	"github.com/pkg/errors"
+	"golang.org/x/sync/errgroup"
 )
 
 // hashcash represents hashcash service.
 type hashcash struct {
 	concurrency uint
-	hashFunc    func() hash.Hash
+	// hashFunc is a function that returns a new hasher. Client and server MUST specify the same one.
+	hashFunc func() hash.Hash
 }
 
 // NewHashcash creates new hashcash instance.
+//
+// hashFunc argument MUST be the same for client and server.
 func NewHashcash(hashFunc func() hash.Hash, concurrency uint) *hashcash {
 	if concurrency == 0 {
 		concurrency = 1

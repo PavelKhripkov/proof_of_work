@@ -3,18 +3,19 @@ package main
 import (
 	"context"
 	"crypto/sha256"
-	"github.com/pkg/errors"
-	"github.com/redis/go-redis/v9"
-	"github.com/sirupsen/logrus"
 	"net"
 	"os"
 	"os/signal"
+	"syscall"
+
+	"github.com/pkg/errors"
+	"github.com/redis/go-redis/v9"
+	"github.com/sirupsen/logrus"
+
 	"pow/internal/server"
 	"pow/internal/storage/redis_storage"
 	"pow/pkg/config"
 	"pow/pkg/hashcash"
-	"pow/pkg/protocol/pow"
-	"syscall"
 )
 
 func main() {
@@ -50,27 +51,28 @@ func main() {
 		panic(err)
 	}
 
-	redisStorage := redis_storage.NewRedis(redisClient, cfg.HashExp)
-
-	// Proto.
-	proto := pow.NewPoW(logger.WithField("module", "pow"), cfg.Version, cfg.Target, h, cfg.HeaderTimeInterval)
+	redisStorage := redis_storage.NewRedis(redisClient)
 
 	// Server.
-	s := server.NewServer(logger.WithField("module", "server"), redisStorage, proto, cfg.ResponseTimeout)
+	params := server.NewServerParams{
+		Logger:        logger.WithField("module", "server"),
+		Storage:       redisStorage,
+		Hashcash:      h,
+		RespTimeout:   cfg.ResponseTimeout,
+		ChallengeSize: cfg.ChallengeSize,
+		TargetBits:    cfg.TargetBits,
+		ChallengeTTL:  cfg.ChallengeTTL,
+	}
+	s := server.NewServer(params)
 
-	ip := net.ParseIP(cfg.ServerAddr)
-	if ip == nil {
+	host, _, err := net.SplitHostPort(cfg.ServerAddr)
+	if err != nil {
+		err = errors.Wrap(err, "couldn't parse host:port from config")
+		panic(err)
+	}
+
+	if host == "" {
 		logger.Info("Server address is not specified. Using default.")
-	}
-
-	if cfg.ServerPort == 0 {
-		logger.Info("Server port is not specified. Port will be chosen automatically.")
-	}
-
-	addr := net.TCPAddr{
-		IP:   ip,
-		Port: cfg.ServerPort,
-		Zone: "",
 	}
 
 	// Graceful shutdown on signal.
@@ -90,7 +92,7 @@ func main() {
 
 	// Starting server.
 	logger.Info("Starting server.")
-	err = s.Run(ctx, &addr)
+	err = s.Run(ctx, cfg.ServerAddr)
 	if err != nil {
 		logger.WithError(err).Error("Server stopped.")
 		cancel()
