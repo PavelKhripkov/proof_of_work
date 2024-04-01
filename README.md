@@ -21,13 +21,13 @@ This algorithm is used in Bitcoin. And this is the first implementation of such 
 
 ### App architecture
 Application has classic architecture for Go projects. There are server service and client service.
-Redis is used as a storage because of it's TTL feature. Hashcash implemented as in a separate package,
-so it can be imported in other project and reused.
+Redis is used as a storage because of it's TTL feature. Hashcash implemented in a separate package,
+so it can be imported into other projects and reused.
 
 There are key features of Hashcash implementation:
 * Concurrent searching for nonce. User of package can choose concurrency factor.
 * In-place nonce changing while searching for correct one. Significantly decreases consumed resources and increases searching speed.
-* User can choose the hash function to be used. But important that client uses the same as the server.
+* User can choose the hash function to be used. But important that client uses the same one as the server.
 
 ### Requirements
 To run in container:
@@ -55,18 +55,18 @@ make client-up
 ```
 The client makes requests to the server with different settings.
 First client properly finishes the required job and sends results to the server,
-getting some wise quotes as a reward. Then settings is changed, and we'll get
+getting some wise quotes as a reward. Then settings are changed, and we get
 error responses with different codes from the server. And finally we won't give
 the client enough time to finish the job, and the timeout error will be the only
-we can get in that case.
+thing we can get in that case.
 
-Type the following to remove stopped client container from the system:
+Type the following to remove client container from the system:
 ```sh
 make client-down
 ```
 
 ### Run tests
-There are tests and linters runner in the Makefile. 
+There are tests and linters runner in the [Makefile](Makefile). 
 First prepare the tools and then run both of them with a single command:
 ```sh
 make init
