@@ -32,9 +32,9 @@ There are key features of Hashcash implementation:
 ### Requirements
 To run in container:
 * Docker v.24.0.7 (or other supporting multi-stage build syntax)
+* Go v1.22
 
-For local run:
-* Go v1.21 (should work with older versions)
+For local run additionally need:
 * Redis v7.2.4 (should work from v6.2.0)
 
 ### Run server
