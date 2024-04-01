@@ -22,11 +22,11 @@ type mockStorage struct {
 	GetDelChallengeResponseErr     error
 }
 
-func (s *mockStorage) StoreChallenge(ctx context.Context, challenge []byte, hashTTL time.Duration) (err error) {
+func (s *mockStorage) StoreChallenge(_ context.Context, _ []byte, _ time.Duration) (err error) {
 	return s.StoreChallengeResponse
 }
 
-func (s *mockStorage) GetDelChallenge(ctx context.Context, challenge []byte) (bool, error) {
+func (s *mockStorage) GetDelChallenge(_ context.Context, _ []byte) (bool, error) {
 	return s.GetDelChallengeResponseAllowed, s.GetDelChallengeResponseErr
 }
 
